@@ -12,55 +12,130 @@
         .theme-tag { background: #dbeafe; color: #1e40af; }
         .reason { color: #555; line-height: 1.6; margin: 10px 0; }
         .source { font-size: 13px; color: #2563eb; text-decoration: none; }
+        
+        .input-panel { background: #fff; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 30px; border-top: 4px solid #2563eb; }
+        .input-row { margin-bottom: 15px; display: flex; gap: 10px; }
+        .input-row input { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 5px; }
+        .input-row textarea { width: 100%; height: 100px; padding: 10px; border: 1px solid #ddd; border-radius: 5px; resize: vertical; }
+        .btn-submit { background: #2563eb; color: white; border: none; padding: 12px 20px; font-size: 16px; font-weight: bold; border-radius: 5px; cursor: pointer; width: 100%; margin-bottom: 10px;}
+        .btn-submit:hover { background: #1d4ed8; }
+        .btn-admin { background: #475569; color: white; border: none; padding: 10px; font-size: 14px; border-radius: 5px; cursor: pointer; width: 100%; }
     </style>
 </head>
 <body>
     <h1>🚀 주식 인사이트 대시보드</h1>
-    <div id="stock-list">데이터를 불러오는 중... 잠시만 기다려주세요!</div>
+
+    <div class="input-panel">
+        <h3 style="margin-top:0;">📝 데이터 일괄 등록 (자동 테마 매칭)</h3>
+        <div class="input-row">
+            <input type="text" id="input-reason" placeholder="추천 이유 (예: 똑똑한머니 - 기관수급 픽)">
+            <input type="text" id="input-source" placeholder="출처 URL (선택)">
+        </div>
+        <div class="input-row">
+            <textarea id="input-rawtext" placeholder="종목 리스트를 붙여넣으세요! (예: 005930 삼성전자)"></textarea>
+        </div>
+        <button class="btn-submit" onclick="parseAndInsert()">✨ 자동 테마 매칭 & 일괄 등록</button>
+        <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
+        <button class="btn-admin" onclick="initMasterDB()">🛠️ [관리자] 핵심 테마 마스터 DB 20개 세팅하기</button>
+    </div>
+
+    <div id="stock-list">데이터를 불러오는 중...</div>
 
     <script>
-        // URL과 KEY를 완벽하게 세팅했습니다.
+        // 🚨 URL과 KEY를 꼭 다시 넣어주세요!
         const SUPABASE_URL = 'https://lvbqtatdemrbhfpgsflf.supabase.co';
         const SUPABASE_KEY = 'sb_publishable_YBoGpmdtke1LaGS51Lgl6w_KPOgvmRN';
-        
-        // 에러의 주범이었던 이름을 'client'로 바꿨습니다!
         const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+        // 1. [관리자 기능] 마스터 DB에 테마 사전 채워넣기
+        async function initMasterDB() {
+            const masterData = [
+                { code: '005930', name: '삼성전자', theme: 'AI 반도체, 온디바이스AI' },
+                { code: '000660', name: 'SK하이닉스', theme: 'HBM, 반도체 장비' },
+                { code: '003670', name: '포스코퓨처엠', theme: '2차전지, 양극재' },
+                { code: '034020', name: '두산에너빌리티', theme: '원자력 발전, SMR' },
+                { code: '011070', name: 'LG이노텍', theme: '애플 밸류체인, 카메라' },
+                { code: '086790', name: '하나금융지주', theme: '저PBR, 밸류업' }
+            ];
+
+            // upsert는 이미 있으면 업데이트, 없으면 새로 넣는 똑똑한 기능입니다.
+            const { error } = await client.from('stock_master').upsert(masterData, { onConflict: 'code' });
+            
+            if(error) alert("마스터 DB 세팅 실패: " + error.message);
+            else alert("✅ 마스터 DB(테마 사전) 세팅이 완료되었습니다!");
+        }
+
+        // 2. 화면에 데이터 불러오기
         async function fetchStocks() {
             const listDiv = document.getElementById('stock-list');
+            const { data, error } = await client.from('stocks').select('*').order('created_at', { ascending: false });
+            if (error) return listDiv.innerHTML = `<p style="color:red;">에러: ${error.message}</p>`;
+            if (!data || data.length === 0) return listDiv.innerHTML = '<p>데이터가 없습니다.</p>';
+
+            listDiv.innerHTML = data.map(s => {
+                // 이번에는 theme를 배열이 아니라 하나의 텍스트로 처리합니다.
+                const themes = s.theme ? `<span class="tag theme-tag">🔥 ${s.theme}</span>` : '<span class="tag" style="background:#eee;">테마 미분류</span>';
+                return `
+                <div class="card">
+                    <h3>${s.name} <span style="font-size:16px; color:#888;">(${s.code})</span></h3>
+                    <div>${themes}</div>
+                    <p class="reason">📝 ${s.reason || ''}</p>
+                    ${s.source_url ? `<a href="${s.source_url}" class="source" target="_blank">🔗 출처 링크</a>` : ''}
+                </div>`;
+            }).join('');
+        }
+
+        // 3. 텍스트 파싱 + 마스터 DB 매칭 후 등록
+        async function parseAndInsert() {
+            const rawText = document.getElementById('input-rawtext').value;
+            const reason = document.getElementById('input-reason').value;
+            const sourceUrl = document.getElementById('input-source').value;
             
-            try {
-                // 여기도 client를 사용하도록 수정했습니다.
-                const { data, error } = await client
-                    .from('stocks')
-                    .select('*')
-                    .order('created_at', { ascending: false });
+            if (!rawText) return alert("종목 텍스트를 입력해 주세요!");
 
-                if (error) {
-                    listDiv.innerHTML = `<p style="color:red; font-weight:bold;">[에러 발생] ${error.message}</p>`;
-                    return;
-                }
+            // 3-1. 텍스트에서 종목코드와 이름만 먼저 쏙쏙 뽑아냅니다.
+            const regex = /(\d{6})\s+([가-힣A-Za-z0-9&]+)/g;
+            let match;
+            const extractedStocks = [];
+            const codeList = []; // 사전을 뒤지기 위해 코드만 따로 모읍니다.
 
-                if (!data || data.length === 0) {
-                    listDiv.innerHTML = '<p>데이터가 없습니다. 수파베이스에 데이터를 넣어주세요.</p>';
-                    return;
-                }
+            while ((match = regex.exec(rawText)) !== null) {
+                extractedStocks.push({ code: match[1], name: match[2] });
+                codeList.push(match[1]);
+            }
 
-                listDiv.innerHTML = data.map(s => {
-                    const sectors = (s.sector && Array.isArray(s.sector)) ? s.sector.map(sec => `<span class="tag">${sec}</span>`).join('') : '';
-                    const themes = (s.theme && Array.isArray(s.theme)) ? s.theme.map(t => `<span class="tag theme-tag">🔥 ${t}</span>`).join('') : '';
-                    
-                    return `
-                    <div class="card">
-                        <h3>${s.name || '종목명 없음'} <span style="font-size:16px; color:#888;">(${s.code || '코드없음'})</span></h3>
-                        <div>${sectors} ${themes}</div>
-                        <p class="reason">📝 ${s.reason || '이유가 작성되지 않았습니다.'}</p>
-                        ${s.source_url ? `<a href="${s.source_url}" class="source" target="_blank">🔗 출처 링크</a>` : ''}
-                    </div>
-                    `;
-                }).join('');
-            } catch (err) {
-                listDiv.innerHTML = `<p style="color:red;">치명적인 에러: ${err.message}</p>`;
+            if (extractedStocks.length === 0) return alert("종목코드와 종목명을 찾지 못했습니다.");
+
+            // 3-2. 🚨 핵심! 수파베이스 'stock_master' 사전에 물어봐서 테마를 가져옵니다.
+            const { data: masterData, error: masterError } = await client
+                .from('stock_master')
+                .select('code, theme')
+                .in('code', codeList); // 우리가 뽑은 코드들만 검색!
+
+            // 검색을 빨리 하기 위해 딕셔너리(Map) 형태로 바꿉니다. (예: themeMap['005930'] = '반도체')
+            const themeMap = {};
+            if (masterData) {
+                masterData.forEach(item => { themeMap[item.code] = item.theme; });
+            }
+
+            // 3-3. 가져온 테마 정보와 입력 데이터를 예쁘게 합체합니다!
+            const uploadData = extractedStocks.map(stock => ({
+                code: stock.code,
+                name: stock.name,
+                theme: themeMap[stock.code] || null, // 사전에 있으면 넣고, 없으면 비워둠
+                reason: reason,
+                source_url: sourceUrl
+            }));
+
+            // 3-4. 최종 데이터를 stocks 테이블에 전송
+            const { error } = await client.from('stocks').insert(uploadData);
+
+            if (error) {
+                alert("저장 실패: " + error.message);
+            } else {
+                alert(`성공! 총 ${uploadData.length}개의 종목이 테마와 함께 등록되었습니다.`);
+                document.getElementById('input-rawtext').value = ''; 
+                fetchStocks(); 
             }
         }
 
