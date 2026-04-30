@@ -9,55 +9,60 @@
         .card { background: white; padding: 20px; margin-bottom: 15px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
         h3 { margin: 0 0 10px 0; color: #333; }
         .tag { display: inline-block; background: #e2e8f0; color: #475569; padding: 4px 10px; border-radius: 15px; font-size: 13px; margin-right: 5px; margin-bottom: 5px; font-weight: bold; }
-        .theme-tag { background: #dbeafe; color: #1e40af; } /* 테마는 파란색 계열로 강조 */
+        .theme-tag { background: #dbeafe; color: #1e40af; }
         .reason { color: #555; line-height: 1.6; margin: 10px 0; }
         .source { font-size: 13px; color: #2563eb; text-decoration: none; }
     </style>
 </head>
 <body>
     <h1>🚀 주식 인사이트 대시보드</h1>
-    <div id="stock-list">데이터를 불러오는 중... (수파베이스에 데이터가 1개 이상 있어야 보입니다!)</div>
+    <div id="stock-list">데이터를 불러오는 중... 잠시만 기다려주세요!</div>
 
     <script>
-        // 🚨 여기에 본인의 수파베이스 Project URL과 API Key(anon)를 따옴표 안에 넣으세요!
+        // 🚨 여기에 본인의 수파베이스 정보를 꼭 다시 넣어주세요!
         const SUPABASE_URL = 'https://lvbqtatdemrbhfpgsflf.supabase.co/rest/v1/';
         const SUPABASE_KEY = 'sb_publishable_YBoGpmdtke1LaGS51Lgl6w_KPOgvmRN';
+        
         const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         async function fetchStocks() {
-            // stocks 테이블에서 최신순으로 데이터 가져오기
-            const { data, error } = await supabase
-                .from('stocks')
-                .select('*')
-                .order('created_at', { ascending: false });
-
             const listDiv = document.getElementById('stock-list');
+            
+            try {
+                // 데이터를 가져옵니다
+                const { data, error } = await supabase
+                    .from('stocks')
+                    .select('*')
+                    .order('created_at', { ascending: false });
 
-            if (error) {
-                listDiv.innerHTML = `<p style="color:red;">에러가 발생했습니다: ${error.message}</p>`;
-                return;
+                // 만약 에러가 발생하면 화면에 빨간 글씨로 띄웁니다
+                if (error) {
+                    listDiv.innerHTML = `<p style="color:red; font-weight:bold;">[에러 발생] ${error.message}</p><p>수파베이스 설정이나 RLS(보안) 설정을 확인해 보세요.</p>`;
+                    return;
+                }
+
+                if (!data || data.length === 0) {
+                    listDiv.innerHTML = '<p>데이터가 없습니다. 수파베이스에 데이터를 넣어주세요.</p>';
+                    return;
+                }
+
+                // 데이터를 화면에 그립니다
+                listDiv.innerHTML = data.map(s => {
+                    const sectors = (s.sector && Array.isArray(s.sector)) ? s.sector.map(sec => `<span class="tag">${sec}</span>`).join('') : '';
+                    const themes = (s.theme && Array.isArray(s.theme)) ? s.theme.map(t => `<span class="tag theme-tag">🔥 ${t}</span>`).join('') : '';
+                    
+                    return `
+                    <div class="card">
+                        <h3>${s.name || '종목명 없음'} <span style="font-size:16px; color:#888;">(${s.code || '코드없음'})</span></h3>
+                        <div>${sectors} ${themes}</div>
+                        <p class="reason">📝 ${s.reason || '이유가 작성되지 않았습니다.'}</p>
+                        ${s.source_url ? `<a href="${s.source_url}" class="source" target="_blank">🔗 출처 링크</a>` : ''}
+                    </div>
+                    `;
+                }).join('');
+            } catch (err) {
+                listDiv.innerHTML = `<p style="color:red;">치명적인 에러: ${err.message}</p>`;
             }
-
-            if (data.length === 0) {
-                listDiv.innerHTML = '<p>아직 등록된 주식 데이터가 없습니다. 수파베이스에 데이터를 추가해 보세요!</p>';
-                return;
-            }
-
-            // 데이터를 예쁜 HTML 카드로 만들기
-            listDiv.innerHTML = data.map(s => {
-                // 배열(text[])로 저장된 섹터와 테마를 태그 모양으로 변환
-                const sectors = s.sector ? s.sector.map(sec => `<span class="tag">${sec}</span>`).join('') : '';
-                const themes = s.theme ? s.theme.map(t => `<span class="tag theme-tag">🔥 ${t}</span>`).join('') : '';
-
-                return `
-                <div class="card">
-                    <h3>${s.name} <span style="font-size:16px; color:#888;">(${s.code})</span></h3>
-                    <div>${sectors} ${themes}</div>
-                    <p class="reason">📝 ${s.reason || '이유가 작성되지 않았습니다.'}</p>
-                    ${s.source_url ? `<a href="${s.source_url}" class="source" target="_blank">🔗 출처 링크로 이동</a>` : ''}
-                </div>
-                `;
-            }).join('');
         }
 
         fetchStocks();
