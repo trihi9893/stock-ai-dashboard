@@ -42,12 +42,10 @@
     <div id="stock-list">데이터를 불러오는 중...</div>
 
     <script>
-        // 🚨 URL과 KEY를 꼭 다시 넣어주세요!
-        const SUPABASE_URL = 'https://lvbqtatdemrbhfpgsflf.supabase.co';
-        const SUPABASE_KEY = 'sb_publishable_YBoGpmdtke1LaGS51Lgl6w_KPOgvmRN';
+        const SUPABASE_URL = '여기에_URL_붙여넣기';
+        const SUPABASE_KEY = '여기에_KEY_붙여넣기';
         const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        // 1. [관리자 기능] 마스터 DB에 테마 사전 채워넣기
         async function initMasterDB() {
             const masterData = [
                 { code: '005930', name: '삼성전자', theme: 'AI 반도체, 온디바이스AI' },
@@ -58,14 +56,11 @@
                 { code: '086790', name: '하나금융지주', theme: '저PBR, 밸류업' }
             ];
 
-            // upsert는 이미 있으면 업데이트, 없으면 새로 넣는 똑똑한 기능입니다.
             const { error } = await client.from('stock_master').upsert(masterData, { onConflict: 'code' });
-            
             if(error) alert("마스터 DB 세팅 실패: " + error.message);
             else alert("✅ 마스터 DB(테마 사전) 세팅이 완료되었습니다!");
         }
 
-        // 2. 화면에 데이터 불러오기
         async function fetchStocks() {
             const listDiv = document.getElementById('stock-list');
             const { data, error } = await client.from('stocks').select('*').order('created_at', { ascending: false });
@@ -73,8 +68,11 @@
             if (!data || data.length === 0) return listDiv.innerHTML = '<p>데이터가 없습니다.</p>';
 
             listDiv.innerHTML = data.map(s => {
-                // 이번에는 theme를 배열이 아니라 하나의 텍스트로 처리합니다.
-                const themes = s.theme ? `<span class="tag theme-tag">🔥 ${s.theme}</span>` : '<span class="tag" style="background:#eee;">테마 미분류</span>';
+                // DB에서 배열(Array) 형태로 오기 때문에 다시 태그로 예쁘게 쪼개줍니다.
+                const themes = (s.theme && Array.isArray(s.theme)) 
+                    ? s.theme.map(t => `<span class="tag theme-tag">🔥 ${t}</span>`).join('') 
+                    : '<span class="tag" style="background:#eee;">테마 미분류</span>';
+                    
                 return `
                 <div class="card">
                     <h3>${s.name} <span style="font-size:16px; color:#888;">(${s.code})</span></h3>
@@ -85,7 +83,6 @@
             }).join('');
         }
 
-        // 3. 텍스트 파싱 + 마스터 DB 매칭 후 등록
         async function parseAndInsert() {
             const rawText = document.getElementById('input-rawtext').value;
             const reason = document.getElementById('input-reason').value;
@@ -93,11 +90,10 @@
             
             if (!rawText) return alert("종목 텍스트를 입력해 주세요!");
 
-            // 3-1. 텍스트에서 종목코드와 이름만 먼저 쏙쏙 뽑아냅니다.
             const regex = /(\d{6})\s+([가-힣A-Za-z0-9&]+)/g;
             let match;
             const extractedStocks = [];
-            const codeList = []; // 사전을 뒤지기 위해 코드만 따로 모읍니다.
+            const codeList = []; 
 
             while ((match = regex.exec(rawText)) !== null) {
                 extractedStocks.push({ code: match[1], name: match[2] });
@@ -106,28 +102,30 @@
 
             if (extractedStocks.length === 0) return alert("종목코드와 종목명을 찾지 못했습니다.");
 
-            // 3-2. 🚨 핵심! 수파베이스 'stock_master' 사전에 물어봐서 테마를 가져옵니다.
             const { data: masterData, error: masterError } = await client
                 .from('stock_master')
                 .select('code, theme')
-                .in('code', codeList); // 우리가 뽑은 코드들만 검색!
+                .in('code', codeList); 
 
-            // 검색을 빨리 하기 위해 딕셔너리(Map) 형태로 바꿉니다. (예: themeMap['005930'] = '반도체')
             const themeMap = {};
             if (masterData) {
                 masterData.forEach(item => { themeMap[item.code] = item.theme; });
             }
 
-            // 3-3. 가져온 테마 정보와 입력 데이터를 예쁘게 합체합니다!
-            const uploadData = extractedStocks.map(stock => ({
-                code: stock.code,
-                name: stock.name,
-                theme: themeMap[stock.code] || null, // 사전에 있으면 넣고, 없으면 비워둠
-                reason: reason,
-                source_url: sourceUrl
-            }));
+            const uploadData = extractedStocks.map(stock => {
+                // 🚨 문제 해결! 텍스트를 쉼표(,) 기준으로 잘라서 배열로 만들어줍니다.
+                const themeString = themeMap[stock.code];
+                const themeArray = themeString ? themeString.split(',').map(t => t.trim()) : null;
 
-            // 3-4. 최종 데이터를 stocks 테이블에 전송
+                return {
+                    code: stock.code,
+                    name: stock.name,
+                    theme: themeArray, // 이제 에러 없이 배열이 쏙 들어갑니다!
+                    reason: reason,
+                    source_url: sourceUrl
+                };
+            });
+
             const { error } = await client.from('stocks').insert(uploadData);
 
             if (error) {
