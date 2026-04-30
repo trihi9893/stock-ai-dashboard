@@ -2,138 +2,137 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>주식 분석 대시보드</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>주식 인사이트 대시보드</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
     <style>
-        body { font-family: '맑은 고딕', sans-serif; background-color: #f4f7f6; padding: 20px; max-width: 800px; margin: 0 auto; }
-        .card { background: white; padding: 20px; margin-bottom: 15px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-        h3 { margin: 0 0 10px 0; color: #333; }
-        .tag { display: inline-block; background: #e2e8f0; color: #475569; padding: 4px 10px; border-radius: 15px; font-size: 13px; margin-right: 5px; margin-bottom: 5px; font-weight: bold; }
-        .theme-tag { background: #dbeafe; color: #1e40af; }
-        .reason { color: #555; line-height: 1.6; margin: 10px 0; }
-        .source { font-size: 13px; color: #2563eb; text-decoration: none; }
+        :root { --primary: #2563eb; --bg: #f8fafc; --card: #ffffff; --text: #1e293b; }
+        body { font-family: 'Pretendard', '맑은 고딕', sans-serif; background-color: var(--bg); color: var(--text); padding: 20px; max-width: 900px; margin: 0 auto; line-height: 1.6; }
         
-        .input-panel { background: #fff; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 30px; border-top: 4px solid #2563eb; }
-        .input-row { margin-bottom: 15px; display: flex; gap: 10px; }
-        .input-row input { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 5px; }
-        .input-row textarea { width: 100%; height: 100px; padding: 10px; border: 1px solid #ddd; border-radius: 5px; resize: vertical; }
-        .btn-submit { background: #2563eb; color: white; border: none; padding: 12px 20px; font-size: 16px; font-weight: bold; border-radius: 5px; cursor: pointer; width: 100%; margin-bottom: 10px;}
-        .btn-submit:hover { background: #1d4ed8; }
-        .btn-admin { background: #475569; color: white; border: none; padding: 10px; font-size: 14px; border-radius: 5px; cursor: pointer; width: 100%; }
+        /* 헤더 스타일 */
+        header { text-align: center; margin-bottom: 40px; }
+        header h1 { font-size: 28px; color: var(--primary); margin-bottom: 10px; }
+        
+        /* 입력창 영역 */
+        .input-panel { background: var(--card); padding: 25px; border-radius: 16px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); margin-bottom: 40px; }
+        .input-group { margin-bottom: 15px; }
+        .input-row { display: flex; gap: 12px; margin-bottom: 12px; }
+        input, textarea { width: 100%; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 15px; box-sizing: border-box; }
+        textarea { height: 120px; resize: vertical; }
+        input:focus, textarea:focus { outline: 2px solid var(--primary); border-color: transparent; }
+        
+        /* 버튼 스타일 */
+        .btn-submit { background: var(--primary); color: white; border: none; padding: 14px; font-size: 16px; font-weight: bold; border-radius: 8px; cursor: pointer; width: 100%; transition: 0.2s; }
+        .btn-submit:hover { background: #1d4ed8; transform: translateY(-1px); }
+
+        /* 카드 리스트 */
+        .stock-grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
+        .card { background: var(--card); padding: 24px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); border: 1px solid #f1f5f9; }
+        .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+        .stock-name { font-size: 20px; font-weight: 800; color: #0f172a; }
+        .stock-code { color: #64748b; font-size: 14px; font-weight: normal; margin-left: 8px; }
+        
+        /* 태그 스타일 */
+        .tag-container { margin-bottom: 15px; display: flex; flex-wrap: wrap; gap: 6px; }
+        .tag { background: #f1f5f9; color: #475569; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; }
+        .theme-tag { background: #eff6ff; color: #2563eb; }
+        
+        .reason-box { background: #f8fafc; padding: 12px; border-radius: 8px; font-size: 14px; color: #334155; margin-bottom: 15px; border-left: 4px solid #cbd5e1; }
+        .source-link { font-size: 13px; color: var(--primary); text-decoration: none; font-weight: 600; }
+        .source-link:hover { text-decoration: underline; }
+
+        /* 관리자 기능 숨김 (필요할 때만 콘솔에서 호출) */
+        #admin-zone { display: none; }
     </style>
 </head>
 <body>
-    <h1>🚀 주식 인사이트 대시보드</h1>
+    <header>
+        <h1>📈 Stock Insight Dashboard</h1>
+        <p>포스타입 리스트를 붙여넣어 테마를 자동으로 분류하세요.</p>
+    </header>
 
-    <div class="input-panel">
-        <h3 style="margin-top:0;">📝 데이터 일괄 등록 (자동 테마 매칭)</h3>
+    <section class="input-panel">
         <div class="input-row">
-            <input type="text" id="input-reason" placeholder="추천 이유 (예: 똑똑한머니 - 기관수급 픽)">
-            <input type="text" id="input-source" placeholder="출처 URL (선택)">
+            <input type="text" id="input-reason" placeholder="추천 이유 (예: 기관 수급 특징주)">
+            <input type="text" id="input-source" placeholder="출처 URL (생략 가능)">
         </div>
-        <div class="input-row">
-            <textarea id="input-rawtext" placeholder="종목 리스트를 붙여넣으세요! (예: 005930 삼성전자)"></textarea>
+        <div class="input-group">
+            <textarea id="input-rawtext" placeholder="종목 리스트를 복사해서 붙여넣으세요&#10;예: 005930 삼성전자&#10;    000660 SK하이닉스"></textarea>
         </div>
-        <button class="btn-submit" onclick="parseAndInsert()">✨ 자동 테마 매칭 & 일괄 등록</button>
-        <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
-        <button class="btn-admin" onclick="initMasterDB()">🛠️ [관리자] 핵심 테마 마스터 DB 20개 세팅하기</button>
-    </div>
+        <button class="btn-submit" onclick="parseAndInsert()">🚀 종목 분석 및 등록</button>
+    </section>
 
-    <div id="stock-list">데이터를 불러오는 중...</div>
+    <div id="stock-list" class="stock-grid">데이터를 불러오는 중...</div>
 
     <script>
         const SUPABASE_URL = 'https://lvbqtatdemrbhfpgsflf.supabase.co';
         const SUPABASE_KEY = 'sb_publishable_YBoGpmdtke1LaGS51Lgl6w_KPOgvmRN';
         const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        async function initMasterDB() {
-            const masterData = [
-                { code: '005930', name: '삼성전자', theme: 'AI 반도체, 온디바이스AI' },
-                { code: '000660', name: 'SK하이닉스', theme: 'HBM, 반도체 장비' },
-                { code: '003670', name: '포스코퓨처엠', theme: '2차전지, 양극재' },
-                { code: '034020', name: '두산에너빌리티', theme: '원자력 발전, SMR' },
-                { code: '011070', name: 'LG이노텍', theme: '애플 밸류체인, 카메라' },
-                { code: '086790', name: '하나금융지주', theme: '저PBR, 밸류업' }
-            ];
-
-            const { error } = await client.from('stock_master').upsert(masterData, { onConflict: 'code' });
-            if(error) alert("마스터 DB 세팅 실패: " + error.message);
-            else alert("✅ 마스터 DB(테마 사전) 세팅이 완료되었습니다!");
-        }
-
+        // [조회] 종목 리스트 불러오기
         async function fetchStocks() {
             const listDiv = document.getElementById('stock-list');
             const { data, error } = await client.from('stocks').select('*').order('created_at', { ascending: false });
-            if (error) return listDiv.innerHTML = `<p style="color:red;">에러: ${error.message}</p>`;
-            if (!data || data.length === 0) return listDiv.innerHTML = '<p>데이터가 없습니다.</p>';
+            
+            if (error) return listDiv.innerHTML = `<p>에러 발생: ${error.message}</p>`;
+            if (!data || data.length === 0) return listDiv.innerHTML = '<p style="text-align:center; color:#94a3b8;">등록된 종목이 없습니다.</p>';
 
             listDiv.innerHTML = data.map(s => {
-                // DB에서 배열(Array) 형태로 오기 때문에 다시 태그로 예쁘게 쪼개줍니다.
                 const themes = (s.theme && Array.isArray(s.theme)) 
-                    ? s.theme.map(t => `<span class="tag theme-tag">🔥 ${t}</span>`).join('') 
-                    : '<span class="tag" style="background:#eee;">테마 미분류</span>';
+                    ? s.theme.map(t => `<span class="tag theme-tag">#${t}</span>`).join('') 
+                    : '<span class="tag">#미분류</span>';
                     
                 return `
-                <div class="card">
-                    <h3>${s.name} <span style="font-size:16px; color:#888;">(${s.code})</span></h3>
-                    <div>${themes}</div>
-                    <p class="reason">📝 ${s.reason || ''}</p>
-                    ${s.source_url ? `<a href="${s.source_url}" class="source" target="_blank">🔗 출처 링크</a>` : ''}
-                </div>`;
+                <article class="card">
+                    <div class="card-header">
+                        <div class="stock-name">${s.name}<span class="stock-code">${s.code}</span></div>
+                        ${s.source_url ? `<a href="${s.source_url}" class="source-link" target="_blank">원본 출처 ↗</a>` : ''}
+                    </div>
+                    <div class="tag-container">${themes}</div>
+                    <div class="reason-box">${s.reason || '입력된 상세 내용이 없습니다.'}</div>
+                </article>`;
             }).join('');
         }
 
+        // [등록] 파싱 + 매칭 + 저장
         async function parseAndInsert() {
             const rawText = document.getElementById('input-rawtext').value;
             const reason = document.getElementById('input-reason').value;
             const sourceUrl = document.getElementById('input-source').value;
             
-            if (!rawText) return alert("종목 텍스트를 입력해 주세요!");
+            if (!rawText) return alert("종목 데이터를 입력해주세요.");
 
             const regex = /(\d{6})\s+([가-힣A-Za-z0-9&]+)/g;
             let match;
-            const extractedStocks = [];
-            const codeList = []; 
+            const extracted = [];
+            const codes = [];
 
             while ((match = regex.exec(rawText)) !== null) {
-                extractedStocks.push({ code: match[1], name: match[2] });
-                codeList.push(match[1]);
+                extracted.push({ code: match[1], name: match[2] });
+                codes.push(match[1]);
             }
 
-            if (extractedStocks.length === 0) return alert("종목코드와 종목명을 찾지 못했습니다.");
+            if (extracted.length === 0) return alert("종목 정보를 찾을 수 없습니다. (형식: 005930 삼성전자)");
 
-            const { data: masterData, error: masterError } = await client
-                .from('stock_master')
-                .select('code, theme')
-                .in('code', codeList); 
-
+            // 마스터 DB에서 테마 조회
+            const { data: master } = await client.from('stock_master').select('code, theme').in('code', codes);
             const themeMap = {};
-            if (masterData) {
-                masterData.forEach(item => { themeMap[item.code] = item.theme; });
-            }
+            if (master) master.forEach(item => themeMap[item.code] = item.theme);
 
-            const uploadData = extractedStocks.map(stock => {
-                // 🚨 문제 해결! 텍스트를 쉼표(,) 기준으로 잘라서 배열로 만들어줍니다.
-                const themeString = themeMap[stock.code];
-                const themeArray = themeString ? themeString.split(',').map(t => t.trim()) : null;
-
-                return {
-                    code: stock.code,
-                    name: stock.name,
-                    theme: themeArray, // 이제 에러 없이 배열이 쏙 들어갑니다!
-                    reason: reason,
-                    source_url: sourceUrl
-                };
-            });
+            const uploadData = extracted.map(s => ({
+                code: s.code,
+                name: s.name,
+                theme: themeMap[s.code] ? themeMap[s.code].split(',').map(t => t.trim()) : null,
+                reason: reason,
+                source_url: sourceUrl
+            }));
 
             const { error } = await client.from('stocks').insert(uploadData);
-
-            if (error) {
-                alert("저장 실패: " + error.message);
-            } else {
-                alert(`성공! 총 ${uploadData.length}개의 종목이 테마와 함께 등록되었습니다.`);
-                document.getElementById('input-rawtext').value = ''; 
-                fetchStocks(); 
+            if (error) alert("저장 실패: " + error.message);
+            else {
+                alert(`${uploadData.length}개 종목 등록 완료!`);
+                document.getElementById('input-rawtext').value = '';
+                fetchStocks();
             }
         }
 
