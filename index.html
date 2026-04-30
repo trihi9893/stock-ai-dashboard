@@ -19,25 +19,25 @@
     <div id="stock-list">데이터를 불러오는 중... 잠시만 기다려주세요!</div>
 
     <script>
-        // 🚨 여기에 본인의 수파베이스 정보를 꼭 다시 넣어주세요!
+        // URL과 KEY를 완벽하게 세팅했습니다.
         const SUPABASE_URL = 'https://lvbqtatdemrbhfpgsflf.supabase.co';
         const SUPABASE_KEY = 'sb_publishable_YBoGpmdtke1LaGS51Lgl6w_KPOgvmRN';
         
-        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        // 에러의 주범이었던 이름을 'client'로 바꿨습니다!
+        const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         async function fetchStocks() {
             const listDiv = document.getElementById('stock-list');
             
             try {
-                // 데이터를 가져옵니다
-                const { data, error } = await supabase
+                // 여기도 client를 사용하도록 수정했습니다.
+                const { data, error } = await client
                     .from('stocks')
                     .select('*')
                     .order('created_at', { ascending: false });
 
-                // 만약 에러가 발생하면 화면에 빨간 글씨로 띄웁니다
                 if (error) {
-                    listDiv.innerHTML = `<p style="color:red; font-weight:bold;">[에러 발생] ${error.message}</p><p>수파베이스 설정이나 RLS(보안) 설정을 확인해 보세요.</p>`;
+                    listDiv.innerHTML = `<p style="color:red; font-weight:bold;">[에러 발생] ${error.message}</p>`;
                     return;
                 }
 
@@ -46,7 +46,6 @@
                     return;
                 }
 
-                // 데이터를 화면에 그립니다
                 listDiv.innerHTML = data.map(s => {
                     const sectors = (s.sector && Array.isArray(s.sector)) ? s.sector.map(sec => `<span class="tag">${sec}</span>`).join('') : '';
                     const themes = (s.theme && Array.isArray(s.theme)) ? s.theme.map(t => `<span class="tag theme-tag">🔥 ${t}</span>`).join('') : '';
